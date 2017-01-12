@@ -1,0 +1,335 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vm_adminAccountName": {
+      "defaultValue": "LabAdmin",
+      "type": "String"
+    },
+    "vm_adminPassword": {
+      "defaultValue": null,
+      "type": "SecureString"
+    },
+    "vm_Adatum_name": {
+      "defaultValue": "DC-Adatum",
+      "type": "String"
+    },
+    "vm_Contoso_name": {
+      "defaultValue": "DC-Contoso",
+      "type": "String"
+    },
+    "nsg_CorpNet_name": {
+      "defaultValue": "NSG-CorpNet",
+      "type": "String"
+    },
+    "vn_CorpNet_name": {
+      "defaultValue": "CorpNet",
+      "type": "String"
+    },
+    "pip_dns_prefix": {
+      "defaultValue": "mim-[date]-",
+      "type": "String"
+    },
+    "storageAccounts_name": {
+      "defaultValue": "mim[date]",
+      "type": "String"
+    },
+    "workstation_ip": {
+      "defaultValue": "x.x.x.x",
+      "type": "String"
+    }
+  },
+  "variables": {
+    "ip_dns_dc": "10.1.0.10",
+    "nic_name_core": "[concat('nic_',toLower(parameters('vm_Adatum_name')))]",
+    "nic_name_dcc": "[concat('nic_',toLower(parameters('vm_Contoso_name')))]",
+    "pip_dns_core": "[concat(toLower(parameters('pip_dns_prefix')),toLower(parameters('vm_Adatum_name')))]",
+    "pip_dns_dcc": "[concat(toLower(parameters('pip_dns_prefix')),toLower(parameters('vm_Contoso_name')))]",
+    "pip_name_CORE": "[concat('PIP-',parameters('vm_Adatum_name'))]",
+    "pip_name_DCC": "[concat('PIP-',parameters('vm_Contoso_name'))]"
+  },
+  "resources": [
+    {
+      "comments": "/Microsoft.Network/networkSecurityGroups/CorpNet",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "name": "[parameters('nsg_CorpNet_name')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "RDP_Workstation",
+            "properties": {
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "[parameters('workstation_ip')]",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 110,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "comments": "/Microsoft.Network/publicIPAddresses/DC-Adatum",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('pip_name_CORE')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "idleTimeoutInMinutes": 4,
+        "dnsSettings": {
+          "domainNameLabel": "[variables('pip_dns_core')]"
+        }
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "comments": "/Microsoft.Network/publicIPAddresses/DC-Contoso",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('pip_name_DCC')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publicIPAllocationMethod": "Dynamic",
+        "idleTimeoutInMinutes": 4,
+        "dnsSettings": {
+          "domainNameLabel": "[variables('pip_dns_dcc')]"
+        }
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "comments": "/Microsoft.Network/networkInterfaces/nic_core",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('nic_name_core')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAddress": "10.1.0.11",
+              "privateIPAllocationMethod": "Static",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pip_name_CORE'))]"
+              },
+              "subnet": {
+                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('vn_CorpNet_name')), '/subnets/Subnet-1')]"
+              }
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": [ "[variables('ip_dns_dc')]" ]
+        },
+        "enableIPForwarding": false,
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsg_CorpNet_name'))]"
+        }
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('pip_name_CORE'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('vn_CorpNet_name'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsg_CorpNet_name'))]"
+      ]
+    },
+    {
+      "comments": "/Microsoft.Network/networkInterfaces/nic_dcc",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('nic_name_dcc')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAddress": "[variables('ip_dns_dc')]",
+              "privateIPAllocationMethod": "Static",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pip_name_DCC'))]"
+              },
+              "subnet": {
+                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('vn_CorpNet_name')), '/subnets/Subnet-1')]"
+              }
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": [ "[variables('ip_dns_dc')]" ]
+        },
+        "enableIPForwarding": false,
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsg_CorpNet_name'))]"
+        }
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('pip_name_DCC'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('vn_CorpNet_name'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', parameters('nsg_CorpNet_name'))]"
+      ]
+    },
+    {
+      "comments": "/Microsoft.Storage/storageAccounts/",
+      "type": "Microsoft.Storage/storageAccounts",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "kind": "Storage",
+      "name": "[parameters('storageAccounts_name')]",
+      "apiVersion": "2016-01-01",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {},
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "comments": "/Microsoft.Network/virtualNetworks/CorpNet'.",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[parameters('vn_CorpNet_name')]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.1.0.0/24"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "Subnet-1",
+            "properties": {
+              "addressPrefix": "10.1.0.0/26"
+            }
+          },
+          {
+            "name": "Gateway",
+            "properties": {
+              "addressPrefix": "10.1.0.64/29"
+            }
+          }
+        ]
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "comments": "/Microsoft.Compute/virtualMachines/DC-Contoso",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('vm_Contoso_name')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_A1"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2012-R2-Datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[parameters('vm_Contoso_name')]",
+            "createOption": "FromImage",
+            "vhd": {
+              "uri": "[concat('https', '://', parameters('storageAccounts_name'), '.blob.core.windows.net', concat('/vhds/', parameters('vm_Contoso_name'),'20160819.vhd'))]"
+            },
+            "caching": "ReadWrite"
+          },
+          "dataDisks": []
+        },
+        "osProfile": {
+          "computerName": "[parameters('vm_Contoso_name')]",
+          "adminUsername": "[parameters('vm_adminAccountName')]",
+          "windowsConfiguration": {
+            "provisionVMAgent": true,
+            "enableAutomaticUpdates": true
+          },
+          "secrets": [],
+          "adminPassword": "[parameters('vm_adminPassword')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nic_name_dcc'))]"
+            }
+          ]
+        }
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccounts_name'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nic_name_dcc'))]"
+      ]
+    },
+    {
+      "comments": "/Microsoft.Compute/virtualMachines/DC-Adatum",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('vm_Adatum_name')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_A1"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2012-R2-Datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[parameters('vm_Adatum_name')]",
+            "createOption": "FromImage",
+            "vhd": {
+              "uri": "[concat('https', '://', parameters('storageAccounts_name'), '.blob.core.windows.net', concat('/vhds/', parameters('vm_Adatum_name'),'20160819.vhd'))]"
+            },
+            "caching": "ReadWrite"
+          },
+          "dataDisks": []
+        },
+        "osProfile": {
+          "computerName": "[parameters('vm_Adatum_name')]",
+          "adminUsername": "[parameters('vm_adminAccountName')]",
+          "windowsConfiguration": {
+            "provisionVMAgent": true,
+            "enableAutomaticUpdates": true
+          },
+          "secrets": [],
+          "adminPassword": "[parameters('vm_adminPassword')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nic_name_core'))]"
+            }
+          ]
+        }
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccounts_name'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nic_name_core'))]"
+      ]
+    }
+  ],
+  "outputs": {
+  }
+}

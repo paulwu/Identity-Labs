@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "pip_dns_prefix": {
+      "value": "arcct305-20170101-"
+    },
+    "storageAccounts_name": {
+      "value": "arcct305"
+    },
+    "workstation_ip": {
+      "value": "69.75.217.68/24"
+    }
+  }
+}
